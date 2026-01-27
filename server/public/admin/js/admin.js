@@ -955,14 +955,18 @@ async function approveArticle(id) {
     }
 }
 
-// Generate Slug
+// Generate Slug with timestamp for uniqueness
 function generateSlug(text) {
-    return text
+    const baseSlug = text
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
         .trim();
+
+    // Add timestamp to ensure uniqueness
+    const timestamp = Date.now().toString().slice(-6);
+    return `${baseSlug}-${timestamp}`;
 }
 
 // Preview Article
