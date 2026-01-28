@@ -561,6 +561,7 @@ function renderArticlesHtml(articles) {
             '<div style="height: 300px; background: var(--bg-body); display: flex; align-items: center; justify-content: center;"><p>No Image</p></div>'}
             
             <div class="feed-content">
+                <h3 class="feed-title">${article.headline}</h3>
                 <div class="feed-meta">
                     ${timeAgo(article.published_at, article.created_at)}
                 </div>

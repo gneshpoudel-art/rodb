@@ -4,8 +4,8 @@
     "description": "Professional digital news platform for Routine of Dhulikhel Banda - A local yet authoritative Nepali news organization",
     "main": "server/server.js",
     "scripts": {
-        "start": "node server/server.js",
-        "dev": "nodemon server/server.js",
+        "start": "node server/app.js",
+        "dev": "nodemon server/app.js",
         "init-db": "node server/config/initDatabase.js"
     },
     "keywords": [

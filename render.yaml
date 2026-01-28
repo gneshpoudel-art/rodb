@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: rodb-news
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/app.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_PATH
+        value: ./server/data/rodb.db
+      - key: JWT_SECRET
+        scope: SECRET
+      - key: JWT_REFRESH_SECRET
+        scope: SECRET
+      - key: ADMIN_SECRET
+        scope: SECRET
+      - key: ADMIN_ID
+        scope: SECRET
+      - key: ADMIN_PASSWORD
+        scope: SECRET
+      - key: LOG_LEVEL
+        value: info
