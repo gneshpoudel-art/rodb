@@ -1,5 +1,4 @@
 require('dotenv').config();
-const app = require('./app');
 const database = require('./config/database');
 const logger = require('./utils/logger');
 
@@ -13,9 +12,12 @@ let server;
 
 async function startServer() {
     try {
-        // Initialize database
+        // Initialize database FIRST before loading app (which loads routes/models)
         await database.initialize();
         logger.info('Database initialized');
+        
+        // NOW load the app after database is ready
+        const app = require('./app');
 
         // Auto-publish approved articles
         try {
