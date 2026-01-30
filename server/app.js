@@ -5,6 +5,20 @@ const path = require('path');
 const securityConfig = require('./config/security');
 const logger = require('./utils/logger');
 
+// JSON replacer to handle non-serializable types
+const jsonReplacer = (key, value) => {
+    // Handle BigInt
+    if (typeof value === 'bigint') {
+        return Number(value);
+    }
+    // Filter out undefined and circular references
+    if (value === undefined) {
+        return undefined;
+    }
+    // Keep everything else as-is (JSON natively supports boolean, null, string, number, array, object)
+    return value;
+};
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const { router: adminAuthRoutes } = require('./routes/admin-auth');
@@ -22,6 +36,29 @@ const healthRoutes = require('./routes/health');
 const adsRoutes = require('./routes/ads');
 
 const app = express();
+
+// Custom JSON middleware to safely serialize responses
+app.use(express.json({ limit: '10mb' }));
+app.use((req, res, next) => {
+    // Override res.json to use our custom replacer
+    const originalJson = res.json;
+    res.json = function(data) {
+        try {
+            // Use our replacer to handle unsupported types
+            const jsonString = JSON.stringify(data, jsonReplacer);
+            this.set('Content-Type', 'application/json');
+            this.send(jsonString);
+        } catch (error) {
+            logger.error('JSON serialization error:', error);
+            // Fallback: try to send the data without the problematic parts
+            const safeData = cleanObjectForJSON(data);
+            this.set('Content-Type', 'application/json');
+            this.send(JSON.stringify(safeData));
+        }
+        return this;
+    };
+    next();
+});
 
 // Security middleware
 app.use(helmet(securityConfig.helmet));
@@ -98,5 +135,34 @@ app.use((err, req, res, next) => {
             : err.message,
     });
 });
+
+// Helper function to clean objects for JSON serialization
+function cleanObjectForJSON(obj, depth = 0) {
+    if (depth > 50) return null; // Prevent infinite recursion
+    if (obj === null || obj === undefined) return obj;
+
+    if (typeof obj === 'bigint') return Number(obj);
+    if (typeof obj === 'boolean') return obj;
+    if (typeof obj === 'string') return obj;
+    if (typeof obj === 'number') return obj;
+
+    if (obj instanceof Date) return obj.toISOString();
+
+    if (Array.isArray(obj)) {
+        return obj.map(item => cleanObjectForJSON(item, depth + 1));
+    }
+
+    if (typeof obj === 'object') {
+        const cleaned = {};
+        for (const [key, value] of Object.entries(obj)) {
+            if (typeof value !== 'function' && typeof value !== 'symbol') {
+                cleaned[key] = cleanObjectForJSON(value, depth + 1);
+            }
+        }
+        return cleaned;
+    }
+
+    return undefined;
+}
 
 module.exports = app;

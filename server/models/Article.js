@@ -20,54 +20,87 @@ class Article {
         }
     // Create article
     static async create(articleData) {
-        const {
-            headline,
-            sub_headline,
-            summary,
-            body,
-            slug,
-            featured_image_url,
-            featured_image_caption,
-            featured_image_alt,
-            featured_image_credit,
-            category_id,
-            author_id,
-            language = 'en',
-            location_tag,
-            source_attribution,
-            seo_title,
-            seo_description,
-            is_opinion = false,
-            status = 'draft',
-            scheduled_publish_at = null,
-        } = articleData;
+        try {
+            const {
+                headline,
+                sub_headline,
+                summary,
+                body,
+                slug,
+                featured_image_url,
+                featured_image_caption,
+                featured_image_alt,
+                featured_image_credit,
+                category_id,
+                author_id,
+                language = 'en',
+                location_tag,
+                source_attribution,
+                seo_title,
+                seo_description,
+                is_opinion = false,
+                status = 'draft',
+                scheduled_publish_at = null,
+            } = articleData;
 
-        // Calculate reading time (average 200 words per minute)
-        const wordCount = body.split(/\s+/).length;
-        const reading_time = Math.ceil(wordCount / 200);
+            // Validate required fields
+            if (!headline || !body || !slug || !author_id) {
+                throw new Error('Missing required fields: headline, body, slug, author_id');
+            }
 
-        const result = await database.run(
-            `INSERT INTO articles (
-        headline, sub_headline, summary, body, slug, 
-        featured_image_url, featured_image_caption, featured_image_alt, featured_image_credit,
-        category_id, author_id, language, location_tag, source_attribution,
-        seo_title, seo_description, is_opinion, reading_time, status, scheduled_publish_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                headline, sub_headline, summary, body, slug,
-                featured_image_url, featured_image_caption, featured_image_alt, featured_image_credit,
-                category_id, author_id, language, location_tag, source_attribution,
-                seo_title || headline, seo_description || summary, is_opinion ? 1 : 0, reading_time, status, scheduled_publish_at
-            ]
-        );
+            // Calculate reading time (average 200 words per minute)
+            const wordCount = body.split(/\s+/).length;
+            const reading_time = Math.ceil(wordCount / 200);
 
-        // Create initial version
-        await database.run(
-            'INSERT INTO article_versions (article_id, version_number, headline, body, changed_by) VALUES (?, ?, ?, ?, ?)',
-            [result.lastID, 1, headline, body, author_id]
-        );
+            // Prepare safe values
+            const params = [
+                headline,
+                sub_headline || null,
+                summary || null,
+                body,
+                slug,
+                featured_image_url || null,
+                featured_image_caption || null,
+                featured_image_alt || null,
+                featured_image_credit || null,
+                category_id || null,
+                author_id,
+                language,
+                location_tag || null,
+                source_attribution || null,
+                seo_title || headline,
+                seo_description || summary || null,
+                is_opinion ? 1 : 0,
+                reading_time,
+                status,
+                scheduled_publish_at || null,
+            ];
 
-        return await this.findById(result.lastID);
+            const result = await database.run(
+                `INSERT INTO articles (
+                    headline, sub_headline, summary, body, slug, 
+                    featured_image_url, featured_image_caption, featured_image_alt, featured_image_credit,
+                    category_id, author_id, language, location_tag, source_attribution,
+                    seo_title, seo_description, is_opinion, reading_time, status, scheduled_publish_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                params
+            );
+
+            if (!result.lastID) {
+                throw new Error('Failed to create article - no ID returned');
+            }
+
+            // Create initial version
+            await database.run(
+                'INSERT INTO article_versions (article_id, version_number, headline, body, changed_by) VALUES (?, ?, ?, ?, ?)',
+                [result.lastID, 1, headline, body, author_id]
+            );
+
+            return await this.findById(result.lastID);
+        } catch (error) {
+            logger.error('Article.create() error:', error);
+            throw error;
+        }
     }
 
     // Find article by ID

@@ -44,9 +44,18 @@ class TursoDatabase {
                 throw new Error('Database not initialized');
             }
 
+            // Sanitize parameters
+            const sanitizedParams = (params || []).map(param => {
+                if (param === undefined) return null;
+                if (typeof param === 'bigint') return Number(param);
+                if (param instanceof Date) return param.toISOString();
+                if (typeof param === 'boolean') return param ? 1 : 0;
+                return param;
+            });
+
             const result = await this.db.execute({
                 sql: sql,
-                args: params,
+                args: sanitizedParams,
             });
 
             // Convert BigInt values to numbers for JSON serialization
@@ -65,9 +74,18 @@ class TursoDatabase {
                 throw new Error('Database not initialized');
             }
 
+            // Sanitize parameters
+            const sanitizedParams = (params || []).map(param => {
+                if (param === undefined) return null;
+                if (typeof param === 'bigint') return Number(param);
+                if (param instanceof Date) return param.toISOString();
+                if (typeof param === 'boolean') return param ? 1 : 0;
+                return param;
+            });
+
             const result = await this.db.execute({
                 sql: sql,
-                args: params,
+                args: sanitizedParams,
             });
 
             const row = result.rows?.[0] || null;
@@ -85,9 +103,18 @@ class TursoDatabase {
                 throw new Error('Database not initialized');
             }
 
+            // Sanitize parameters - convert unsupported types before sending to DB
+            const sanitizedParams = (params || []).map(param => {
+                if (param === undefined) return null;
+                if (typeof param === 'bigint') return Number(param);
+                if (param instanceof Date) return param.toISOString();
+                if (typeof param === 'boolean') return param ? 1 : 0;
+                return param;
+            });
+
             const result = await this.db.execute({
                 sql: sql,
-                args: params,
+                args: sanitizedParams,
             });
 
             return {
@@ -112,24 +139,67 @@ class TursoDatabase {
         }
     }
 
-    // Convert BigInt values to regular numbers for JSON serialization
-    convertBigInts(obj) {
+    // Convert unsupported types to JSON-serializable values
+    convertBigInts(obj, depth = 0) {
+        // Prevent infinite recursion
+        if (depth > 100) return null;
+        
         if (obj === null || obj === undefined) return obj;
         
+        // Handle BigInt
         if (typeof obj === 'bigint') {
             return Number(obj);
         }
         
-        if (Array.isArray(obj)) {
-            return obj.map(item => this.convertBigInts(item));
+        // Handle boolean - keep as boolean for API (JSON supports booleans)
+        if (typeof obj === 'boolean') {
+            return obj;
         }
         
-        if (typeof obj === 'object') {
+        // Handle Date
+        if (obj instanceof Date) {
+            return obj.toISOString();
+        }
+        
+        // Handle regular expressions and other non-serializable objects
+        if (typeof obj === 'function' || typeof obj === 'symbol') {
+            return undefined;
+        }
+        
+        // Handle arrays
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.convertBigInts(item, depth + 1)).filter(item => item !== undefined);
+        }
+        
+        // Handle plain objects
+        if (typeof obj === 'object' && obj.constructor === Object) {
             const converted = {};
             for (const [key, value] of Object.entries(obj)) {
-                converted[key] = this.convertBigInts(value);
+                const converted_value = this.convertBigInts(value, depth + 1);
+                // Only add defined values
+                if (converted_value !== undefined) {
+                    converted[key] = converted_value;
+                }
             }
             return converted;
+        }
+        
+        // For Turso objects or other types, try to convert to string if needed
+        if (typeof obj === 'object') {
+            try {
+                // Try to access the object's properties
+                if (obj.toString && typeof obj.toString === 'function') {
+                    const str = obj.toString();
+                    // If it's a special object representation, return null instead
+                    if (str.includes('[object') || str.includes('Object')) {
+                        return null;
+                    }
+                    return str;
+                }
+                return null;
+            } catch (e) {
+                return null;
+            }
         }
         
         return obj;
